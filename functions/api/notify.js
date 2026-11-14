@@ -121,18 +121,33 @@ async function rateLimited(state, ip) {
 async function sendTelegram(env, ticket) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
+  let response;
   try {
-    const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: notification(ticket) }),
       signal: controller.signal,
       redirect: 'error',
     });
-    if (!response.ok) return false;
     const result = await response.json();
-    return result?.ok === true;
-  } catch {
+    if (response.ok && result?.ok === true) return true;
+    const details = { status: response.status };
+    if (Number.isInteger(result?.error_code)) details.error_code = result.error_code;
+    const description = typeof result?.description === 'string' ? result.description.toLowerCase() : '';
+    if (response.status === 401 || details.error_code === 401) details.reason = 'unauthorized';
+    else if (description.includes('chat not found')) details.reason = 'chat_not_found';
+    else if (description.includes('bot was blocked')) details.reason = 'blocked';
+    else if (description.includes('message thread not found')) details.reason = 'thread_not_found';
+    else details.reason = 'other_upstream_error';
+    console.warn('telegram_notification_failed', details);
+    return false;
+  } catch (error) {
+    const details = {};
+    if (response) details.status = response.status;
+    details.reason = controller.signal.aborted || error?.name === 'AbortError' ? 'timeout'
+      : response && error?.name === 'SyntaxError' ? 'other_upstream_error' : 'network_error';
+    console.warn('telegram_notification_failed', details);
     return false;
   } finally {
     clearTimeout(timeout);

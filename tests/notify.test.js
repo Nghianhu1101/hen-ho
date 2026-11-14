@@ -1,10 +1,20 @@
-import test, { afterEach } from 'node:test';
+import test, { afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { onRequest } from '../functions/api/notify.js';
 
 const originalFetch = globalThis.fetch;
-afterEach(() => { globalThis.fetch = originalFetch; });
+const consoleMethods = ['warn', 'error', 'log', 'info', 'debug'];
+const originalConsole = Object.fromEntries(consoleMethods.map(method => [method, console[method]]));
+let capturedLogs;
+beforeEach(() => {
+  capturedLogs = [];
+  for (const method of consoleMethods) console[method] = (...args) => { capturedLogs.push(args); };
+});
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+  for (const method of consoleMethods) console[method] = originalConsole[method];
+});
 
 class MemoryKV {
   records = new Map();
@@ -292,6 +302,7 @@ test('a stalled Telegram request is aborted after eight seconds', { timeout: 150
   assert.deepEqual(result.body, { ok: false, error: 'notification_failed' });
   assert.equal(aborted, true);
   assert.ok(elapsed >= 7900 && elapsed < 12000, `Expected an eight-second timeout; took ${elapsed}ms`);
+  assert.deepEqual(capturedLogs, [['telegram_notification_failed', { reason: 'timeout' }]]);
 });
 
 test('a failed delivery can be retried and only an accepted delivery is remembered', async () => {
@@ -386,4 +397,51 @@ test('a failed completed-request write still confirms an already accepted Telegr
   assert.equal(result.response.status, 200);
   assert.deepEqual(result.body, { ok: true });
   assert.equal(calls.length, 1);
+});
+
+for (const [name, status, upstream, expected] of [
+  ['unauthorized', 401, { ok: false, error_code: 401, description: 'Unauthorized test-token-never-return 123456789 private details' },
+    { status: 401, error_code: 401, reason: 'unauthorized' }],
+  ['chat not found', 400, { ok: false, error_code: 400, description: 'Bad Request: chat not found test-token-never-return 123456789 private details' },
+    { status: 400, error_code: 400, reason: 'chat_not_found' }],
+  ['blocked', 403, { ok: false, error_code: 403, description: 'Forbidden: bot was blocked by the user test-token-never-return 123456789 private details' },
+    { status: 403, error_code: 403, reason: 'blocked' }],
+  ['thread not found', 400, { ok: false, error_code: 400, description: 'Bad Request: message thread not found test-token-never-return 123456789 private details' },
+    { status: 400, error_code: 400, reason: 'thread_not_found' }],
+  ['unclassified upstream error', 500, { ok: false, error_code: 500, description: 'test-token-never-return 123456789 private details' },
+    { status: 500, error_code: 500, reason: 'other_upstream_error' }],
+  ['nonnumeric error code', 400, { ok: false, error_code: 'test-token-never-return 123456789 private details', description: 'private details' },
+    { status: 400, reason: 'other_upstream_error' }],
+]) {
+  test(`diagnostics classify ${name} without logging upstream text or credentials`, async () => {
+    globalThis.fetch = async () => Response.json(upstream, { status });
+    const result = await notify();
+    assert.equal(result.response.status, 502);
+    assert.deepEqual(result.body, { ok: false, error: 'notification_failed' });
+    assert.deepEqual(capturedLogs, [['telegram_notification_failed', expected]]);
+    assert.doesNotMatch(JSON.stringify(capturedLogs), /test-token-never-return|123456789|private details|description|https?:/);
+  });
+}
+
+test('diagnostics classify malformed upstream JSON without logging its body', async () => {
+  globalThis.fetch = async () => new Response('test-token-never-return 123456789 private details', { status: 502 });
+  const result = await notify();
+  assert.equal(result.response.status, 502);
+  assert.deepEqual(result.body, { ok: false, error: 'notification_failed' });
+  assert.deepEqual(capturedLogs, [['telegram_notification_failed', { status: 502, reason: 'other_upstream_error' }]]);
+});
+
+test('diagnostics classify network errors without logging exceptions or their URLs', async () => {
+  globalThis.fetch = async () => { throw new Error('https://api.telegram.org/bottest-token-never-return/sendMessage 123456789 private details'); };
+  const result = await notify();
+  assert.equal(result.response.status, 502);
+  assert.deepEqual(result.body, { ok: false, error: 'notification_failed' });
+  assert.deepEqual(capturedLogs, [['telegram_notification_failed', { reason: 'network_error' }]]);
+});
+
+test('diagnostics stay silent after a confirmed successful Telegram delivery', async () => {
+  acceptTelegram();
+  const result = await notify();
+  assert.equal(result.response.status, 200);
+  assert.deepEqual(capturedLogs, []);
 });
