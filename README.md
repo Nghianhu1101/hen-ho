@@ -6,13 +6,24 @@ Trang web nhỏ để mời ai đó đi hẹn hò:
 2. Bấm Có thì tim bay đầy màn hình.
 3. Chọn ngày và giờ rảnh.
 4. Chọn món ăn.
-5. Ra một tấm vé hẹn hò, có nút sao chép để gửi lại qua Zalo hoặc Messenger.
+5. Ra một tấm vé hẹn hò và gửi thông báo Telegram cho người mời. Vẫn có nút sao chép để gửi lại qua Zalo hoặc Messenger.
 
-Cả trang nằm gọn trong một file `index.html`, không cần cài đặt hay build gì.
+Giao diện dùng HTML/CSS/JS, không có thư viện chạy kèm. Thông báo đi qua Cloudflare Pages Functions để giữ kín token bot.
 
 ## Chạy thử
 
-Mở `index.html` bằng trình duyệt.
+Cần Node.js 22 trở lên và tài khoản Cloudflare đã đăng nhập Wrangler.
+
+```sh
+npm run build
+npm run dev
+```
+
+Mở địa chỉ local do Wrangler hiển thị. Nếu chưa có token/chat ID, trang vẫn tạo và sao chép vé; phần thông báo sẽ hiển thị gửi chưa thành công.
+
+```sh
+npm test
+```
 
 ## Đổi cách xưng hô
 
@@ -26,14 +37,29 @@ Mặc định trang xưng "anh – em". Thêm vào cuối đường link để �
 
 Ví dụ: `https://henho.tenmien.com/#to-cau`
 
-## Đưa lên tên miền riêng
+## Cấu hình Telegram trên Cloudflare
 
-Đây là trang tĩnh, nên host được ở GitHub Pages, Vercel, Netlify hoặc Cloudflare Pages. Trỏ thư mục gốc của repo là xong.
+Trong dự án Pages **hen-ho → Settings → Variables and secrets**, thêm hai biến loại **Secret** cho môi trường **Production**:
 
-Với GitHub Pages:
+| Tên | Giá trị |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Token của bot từ BotFather |
+| `TELEGRAM_CHAT_ID` | Chat ID tài khoản hoặc nhóm nhận thông báo |
 
-1. Vào **Settings → Pages**, chọn **Deploy from a branch**, nhánh `main`, thư mục `/ (root)`.
-2. Điền tên miền vào ô **Custom domain** rồi bật **Enforce HTTPS**.
-3. Thêm bản ghi DNS ở nơi quản lý tên miền:
-   - Tên miền phụ (ví dụ `henho.tenmien.com`): bản ghi `CNAME` trỏ về `<tên-tài-khoản>.github.io`.
-   - Tên miền chính (ví dụ `tenmien.com`): 4 bản ghi `A` trỏ về `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`.
+Người nhận tin riêng phải mở bot và nhấn **Start** trước. Đừng đưa token vào mã nguồn, trình duyệt của khách hay Git. Nếu chạy local, đặt secrets trong `.dev.vars` (đã được Git bỏ qua).
+
+`wrangler.jsonc` khai báo binding KV `NOTIFICATION_STATE` cho việc tránh gửi lại yêu cầu đã thành công và giới hạn gửi ở mức vừa phải. Nếu dùng tài khoản Cloudflare khác, tạo namespace KV riêng và thay ID trong cấu hình.
+
+Thông báo chỉ gửi khi bấm **Đi thôi!** sau khi chọn lịch và món ăn. Các lần tải trang, đổi cách xưng hô hay sao chép vé không gửi tin. Nếu mạng lỗi, có nút thử lại. Không tự động gửi lại khi chưa biết kết quả. KV cung cấp chống lặp/giới hạn theo khả năng nhất quán của KV, không bảo đảm gửi đúng một lần trong mọi tình huống.
+
+## Triển khai
+
+```sh
+npm run deploy
+```
+
+Lệnh tạo `dist/` chỉ chứa tài nguyên tĩnh cần thiết rồi triển khai kèm `functions/`. Token được lấy từ secrets trên Cloudflare. Với môi trường Preview, cần cấu hình secrets Preview riêng nếu muốn thử gửi tin thật.
+
+Website: https://henho.nghiacloud.cloud/ (dự án `hen-ho`, production branch `main`).
+
+Trang hiện dùng **Direct Upload**; đẩy GitHub chưa tự triển khai. Để cập nhật bản đã chạy, dùng lệnh triển khai ở trên sau khi kiểm thử.

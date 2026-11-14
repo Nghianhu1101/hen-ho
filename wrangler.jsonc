@@ -1,0 +1,11 @@
+{
+  "name": "hen-ho",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-11-14",
+  "kv_namespaces": [
+    {
+      "binding": "NOTIFICATION_STATE",
+      "id": "0c04513806d4428b8ad8e025878b5744"
+    }
+  ]
+}

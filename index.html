@@ -259,6 +259,8 @@ legend{padding:0}
         <div class="ticket-stub"><p>Không hoàn · Không hủy · Không đổi ý</p><span class="barcode" aria-hidden="true"></span></div>
       </article>
       <p class="ps" id="ps"></p>
+      <p class="hint" id="notify-hint" role="status" aria-live="polite"></p>
+      <button type="button" class="btn btn-quiet" id="notify-retry" hidden>Gửi lại lời hẹn</button>
       <div class="actions"><button type="button" class="btn btn-primary" id="copy"><span>Sao chép &amp; nhắn cho <span data-p="a">anh</span></span></button></div>
       <p class="hint" id="copy-hint" aria-live="polite"></p>
       <textarea class="copy-box" id="copy-box" readonly hidden aria-label="Nội dung để gửi"></textarea>
@@ -268,7 +270,10 @@ legend{padding:0}
   <p class="foot">Làm bằng cả trái tim (và vài dòng code)</p>
 </main>
 
-<script>
+<script type="module">
+import { createTicketNotifier } from "./notification-client.js";
+import { bangkokDateString } from "./date-utils.js";
+
 (() => {
   const $ = id => document.getElementById(id);
   const root = document.documentElement;
@@ -288,12 +293,28 @@ legend{padding:0}
   const yes = $("yes"), no = $("no"), slot = $("no-slot");
   const dateEl = $("date");
   let fled = false;
+  let confirmedTicket = null;
+  const notifier = createTicketNotifier({
+    onStatus(status) {
+      $("notify-hint").textContent = {
+        idle: "",
+        pending: "Đang gửi lời hẹn…",
+        sent: "Đã gửi lời hẹn rồi 💌",
+        failed: "Chưa gửi được lời hẹn. Thử lại hoặc sao chép vé để nhắn nhé."
+      }[status];
+      $("notify-retry").hidden = status !== "failed";
+      $("notify-retry").disabled = status === "pending";
+    }
+  });
+  $("notify-retry").addEventListener("click", () => {
+    if (confirmedTicket) void notifier.notify(confirmedTicket);
+  });
 
   /* ---------- Ngày tháng ---------- */
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const parseISO = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
   const fmtDate = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "numeric", month: "long" });
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = parseISO(bangkokDateString());
   const nextSat = new Date(today);
   do { nextSat.setDate(nextSat.getDate() + 1); } while (nextSat.getDay() !== 6);
   dateEl.min = iso(today);
@@ -398,20 +419,22 @@ legend{padding:0}
 
   /* ---------- Chọn ngày giờ ---------- */
   function updateWhen() {
+    dateEl.min = bangkokDateString();
     const v = dateEl.value;
     const t = document.querySelector('input[name="time"]:checked');
     let msg, ok = false;
     if (!v) msg = `Chọn ngày ${e} rảnh nha.`;
-    else if (parseISO(v) < today) msg = "Ngày này qua mất rồi, chọn ngày khác nha.";
+    else if (v < dateEl.min) msg = "Ngày này qua mất rồi, chọn ngày khác nha.";
     else if (!t) msg = "Chọn thêm giờ nữa là xong.";
     else { ok = true; msg = `${cap(fmtDate.format(parseISO(v)))} lúc ${t.value}. Nghe được đó!`; }
     $("when-hint").textContent = msg;
     $("to-food").disabled = !ok;
+    return ok;
   }
   dateEl.addEventListener("input", updateWhen);
   dateEl.addEventListener("change", updateWhen);
   document.querySelectorAll('input[name="time"]').forEach(r => r.addEventListener("change", updateWhen));
-  $("to-food").addEventListener("click", () => go(3));
+  $("to-food").addEventListener("click", () => { if (updateWhen()) go(3); });
 
   /* ---------- Chọn món ---------- */
   function updateFood() {
@@ -423,8 +446,17 @@ legend{padding:0}
   }
   document.querySelectorAll('input[name="food"]').forEach(r => r.addEventListener("change", updateFood));
   $("to-ticket").addEventListener("click", () => {
+    if (!updateWhen()) { go(2); return; }
     go(4);
     burst(window.innerWidth / 2, window.innerHeight * 0.35, 60);
+    confirmedTicket = {
+      ticketNo: state.ticketNo,
+      date: dateEl.value,
+      time: document.querySelector('input[name="time"]:checked').value,
+      food: document.querySelector('input[name="food"]:checked').id.slice(2),
+      pronouns: Object.keys(PRESETS).find(key => PRESETS[key][0] === a && PRESETS[key][1] === e) || "anh-em"
+    };
+    void notifier.notify(confirmedTicket);
   });
 
   /* ---------- Vé hẹn ---------- */
@@ -477,6 +509,8 @@ legend{padding:0}
   });
 
   $("restart").addEventListener("click", () => {
+    confirmedTicket = null;
+    notifier.reset();
     state.misses = 0;
     fled = false;
     no.classList.remove("flee");

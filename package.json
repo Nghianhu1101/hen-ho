@@ -1,0 +1,11 @@
+{
+  "name": "hen-ho",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build.mjs",
+    "dev": "npx wrangler pages dev dist",
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name hen-ho --branch main"
+  }
+}
