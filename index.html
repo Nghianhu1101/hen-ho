@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đi hẹn hò nhé?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Be+Vietnam+Pro:wght@400;500;700&family=Pangolin&display=swap">
+<style>
+:root{
+  /* Tấm thiệp kiểu sticker: nền hồng sữa dâu rải tim, thẻ giấy viền mực tím mận, bóng đổ cứng; một sân khấu ở giữa để nút "Không" chạy khắp màn hình */
+  --blush:#FFE3EA;
+  --paper:#FFFBF8;
+  --ink:#3B1230;
+  --cherry:#D62B4A;
+  --butter:#FFCB45;
+  --pink:#FF96AE;
+  --muted:#77506C;
+  --font-display:"Baloo 2","Arial Rounded MT Bold",ui-rounded,system-ui,sans-serif;
+  --font-body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-hand:"Pangolin","Comic Sans MS","Chalkboard SE",cursive;
+  color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{
+  background-color:var(--blush);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cpath d='M14 22C9.5 19 7 16.6 7 13.8 7 11.7 8.7 10 10.8 10c1.4 0 2.5.7 3.2 1.9.7-1.2 1.8-1.9 3.2-1.9 2.1 0 3.8 1.7 3.8 3.8 0 2.8-2.5 5.2-7 8.2z' fill='%23FFCAD6'/%3E%3Cpath d='M42 50c-4.5-3-7-5.4-7-8.2 0-2.1 1.7-3.8 3.8-3.8 1.4 0 2.5.7 3.2 1.9.7-1.2 1.8-1.9 3.2-1.9 2.1 0 3.8 1.7 3.8 3.8 0 2.8-2.5 5.2-7 8.2z' fill='%23FFCAD6'/%3E%3C/svg%3E");
+  background-size:56px 56px;
+  color:var(--ink);
+  font-family:var(--font-body);
+  font-size:16px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+.stage{min-height:100%;display:grid;place-items:center;align-content:center;gap:14px;padding:92px 16px 28px}
+.card{position:relative;width:min(500px,100%);background:var(--paper);border:3px solid var(--ink);border-radius:28px;box-shadow:8px 8px 0 var(--ink);padding:8px 24px 26px;text-align:center}
+.foot{margin:0;font-family:var(--font-hand);font-size:.95rem;color:var(--muted);text-align:center}
+
+/* Linh vật trái tim */
+.mascot{display:block;width:128px;height:auto;margin:-82px auto 0;overflow:visible;filter:drop-shadow(4px 4px 0 var(--ink))}
+.mascot .bob{transform-origin:70px 124px;animation:bob 3.2s ease-in-out infinite}
+.mascot[data-mood="joy"] .bob{animation:hop .7s ease-in-out infinite}
+.mascot.shake .bob{animation:shake .45s ease-in-out}
+@keyframes bob{50%{transform:translateY(-5px) rotate(-2deg)}}
+@keyframes hop{50%{transform:translateY(-9px)}}
+@keyframes shake{20%{transform:rotate(-9deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(3deg)}}
+.m-body{fill:var(--cherry);stroke:var(--ink);stroke-width:4;stroke-linejoin:round}
+.m-line{fill:none;stroke:var(--ink);stroke-width:4;stroke-linecap:round;stroke-linejoin:round}
+.m-shine{fill:none;stroke:var(--paper);stroke-width:4;stroke-linecap:round;opacity:.75}
+.m-cheek{fill:var(--pink)}
+.m-eye,.m-fill{fill:var(--ink)}
+.m-glint{fill:var(--paper)}
+.m-tear{fill:#9AD8FF;stroke:var(--ink);stroke-width:2}
+.mascot .face{display:none}
+.mascot[data-mood="happy"] .f-happy,.mascot[data-mood="plead"] .f-plead,.mascot[data-mood="joy"] .f-joy{display:inline}
+
+/* Tiến độ */
+.pips{display:flex;justify-content:center;gap:8px;list-style:none;margin:12px 0 6px;padding:0}
+.pips li{width:10px;height:10px;border-radius:999px;border:2px solid var(--ink);transition:width .25s ease,background-color .25s ease}
+.pips li.done{background:var(--ink)}
+.pips li.now{background:var(--cherry);width:26px}
+
+/* Chữ */
+.screen{animation:enter .42s cubic-bezier(.3,1.35,.5,1)}
+@keyframes enter{from{transform:translateY(10px) scale(.97)}}
+.sticker{display:inline-block;margin:8px 0 2px;padding:3px 12px 4px;font-family:var(--font-hand);font-size:1.02rem;line-height:1.4;background:var(--butter);border:2px solid var(--ink);border-radius:10px;box-shadow:3px 3px 0 var(--ink);rotate:-3deg}
+h1{margin:12px 0 0;font-family:var(--font-display);font-weight:800;font-size:clamp(2.1rem,8.5vw,3.05rem);line-height:1.18;letter-spacing:-.01em;color:var(--cherry);text-wrap:balance}
+h1:focus{outline:none}
+h1 .wavy{background:linear-gradient(transparent 58%,var(--butter) 58%,var(--butter) 88%,transparent 88%);padding:0 .08em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.lead{margin:12px auto 0;max-width:36ch;color:var(--muted);font-size:1.02rem;text-wrap:pretty}
+.tally,.hint{min-height:1.5em;margin:14px 0 0;color:var(--muted)}
+.tally{font-family:var(--font-hand);font-size:1.08rem}
+.hint{font-size:.93rem}
+
+/* Nút */
+.actions{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:18px;margin-top:22px;min-height:70px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--font-display);font-weight:800;line-height:1.1;color:var(--ink);background:var(--paper);border:3px solid var(--ink);border-radius:999px;box-shadow:4px 4px 0 var(--ink);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;transition:translate .12s ease,box-shadow .12s ease,scale .4s cubic-bezier(.3,1.5,.5,1),filter .15s ease}
+.btn:hover:not([disabled]){filter:brightness(1.06)}
+.btn:active:not([disabled]){translate:3px 3px;box-shadow:1px 1px 0 var(--ink)}
+.btn:focus-visible{outline:3px dashed var(--cherry);outline-offset:4px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn-yes{background:var(--cherry);color:#fff;font-size:1.4rem;padding:12px 38px 13px;scale:var(--grow,1)}
+.btn-no{background:var(--butter);font-size:1rem;padding:8px 20px 9px;white-space:nowrap}
+.btn-no.flee{position:fixed;z-index:20;margin:0;rotate:var(--tilt,0deg);transition:left .34s cubic-bezier(.3,1.4,.5,1),top .34s cubic-bezier(.3,1.4,.5,1),rotate .34s ease,translate .12s ease,box-shadow .12s ease}
+.btn-primary{background:var(--cherry);color:#fff;font-size:1.15rem;padding:12px 28px 13px}
+.btn-quiet{margin-top:10px;background:none;border:0;box-shadow:none;font-family:var(--font-body);font-weight:500;font-size:.95rem;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding:6px 8px}
+.btn-quiet:active:not([disabled]){translate:none;box-shadow:none}
+
+/* Biểu mẫu */
+.form{display:grid;gap:18px;margin:20px 0 0;padding:0;border:0;min-width:0;text-align:left}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{padding:0}
+.field-label{display:block;margin-bottom:8px;font-size:.8rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.input{display:block;width:100%;min-height:52px;font:inherit;font-weight:600;color:var(--ink);background:var(--paper);border:2.5px solid var(--ink);border-radius:14px;padding:10px 14px;box-shadow:3px 3px 0 var(--ink);-webkit-appearance:none;appearance:none}
+.input:focus-visible{outline:3px dashed var(--cherry);outline-offset:3px}
+.choices{display:grid;gap:10px}
+.choice{position:relative;display:block;cursor:pointer}
+.choice input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.choice .box{display:flex;align-items:center;gap:14px;height:100%;padding:10px 14px;background:var(--paper);border:2.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);transition:background-color .15s ease,translate .12s ease,box-shadow .12s ease}
+.choice:hover .box{background:color-mix(in srgb,var(--butter) 25%,var(--paper))}
+.choice input:checked + .box{background:var(--butter);translate:2px 2px;box-shadow:1px 1px 0 var(--ink)}
+.choice input:focus-visible + .box{outline:3px dashed var(--cherry);outline-offset:3px}
+.time{min-width:3.3em;font-family:var(--font-display);font-weight:800;font-size:1.25rem;font-variant-numeric:tabular-nums}
+.foods{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+.foods .box{flex-direction:column;justify-content:center;gap:2px;padding:12px 6px 10px;text-align:center;font-weight:700;font-size:.95rem;line-height:1.25}
+.foods .emo{font-size:2rem;line-height:1.15}
+
+/* Vé hẹn hò */
+.ticket{margin-top:22px;text-align:left;background:color-mix(in srgb,var(--butter) 18%,var(--paper));border:3px solid var(--ink);border-radius:18px;box-shadow:5px 5px 0 var(--ink);overflow:hidden;rotate:-1deg}
+.ticket-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 18px 8px;background:var(--cherry);color:#fff;border-bottom:3px solid var(--ink);font-family:var(--font-display);font-weight:800;letter-spacing:.06em}
+.ticket-head .no{font-size:.95rem;font-variant-numeric:tabular-nums;opacity:.92}
+.ticket dl{display:grid;grid-template-columns:max-content 1fr;gap:10px 16px;margin:0;padding:16px 18px}
+.ticket dt{padding-top:3px;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ticket dd{margin:0;font-weight:700}
+.ticket-stub{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 18px 14px;border-top:3px dashed var(--ink)}
+.ticket-stub p{margin:0;font-family:var(--font-hand);font-size:1rem}
+.barcode{flex:none;width:92px;height:30px;background:repeating-linear-gradient(90deg,var(--ink) 0 2px,transparent 2px 4px,var(--ink) 4px 5px,transparent 5px 7px,var(--ink) 7px 10px,transparent 10px 12px)}
+.ps{margin:20px 4px 0;font-family:var(--font-hand);font-size:1.08rem;text-align:left;rotate:.5deg}
+.copy-box{display:block;width:100%;min-height:140px;margin-top:12px;padding:10px 12px;font:inherit;font-size:.92rem;color:var(--ink);background:var(--paper);border:2.5px solid var(--ink);border-radius:12px;resize:vertical}
+
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:30}
+
+@media (max-width:420px){
+  .card{padding:6px 18px 22px;box-shadow:6px 6px 0 var(--ink)}
+  .ticket dl{grid-template-columns:1fr;gap:0}
+  .ticket dd{margin-bottom:10px}
+  .ticket-stub{flex-wrap:wrap}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<main class="stage">
+  <div class="card">
+    <svg class="mascot" id="mascot" data-mood="happy" viewBox="-12 -4 164 134" width="128" height="105" aria-hidden="true">
+      <g class="bob">
+        <path class="m-line" d="M16 66 C 4 66, -4 58, -4 48"/>
+        <path class="m-line" d="M124 66 C 136 66, 144 58, 144 48"/>
+        <path class="m-body" d="M70 122 C 26 94, 8 66, 8 42 C 8 20, 24 8, 42 8 C 56 8, 65 17, 70 28 C 75 17, 84 8, 98 8 C 116 8, 132 20, 132 42 C 132 66, 114 94, 70 122 Z"/>
+        <path class="m-shine" d="M24 40 C 25 30, 31 23, 40 21"/>
+        <ellipse class="m-cheek" cx="36" cy="70" rx="9" ry="5.5"/>
+        <ellipse class="m-cheek" cx="104" cy="70" rx="9" ry="5.5"/>
+        <g class="face f-happy">
+          <ellipse class="m-eye" cx="52" cy="54" rx="8" ry="10"/>
+          <ellipse class="m-eye" cx="88" cy="54" rx="8" ry="10"/>
+          <circle class="m-glint" cx="55" cy="50" r="3"/>
+          <circle class="m-glint" cx="91" cy="50" r="3"/>
+          <path class="m-line" d="M61 70 Q 70 79 79 70"/>
+        </g>
+        <g class="face f-plead">
+          <path class="m-line" d="M40 40 L 57 34"/>
+          <path class="m-line" d="M83 34 L 100 40"/>
+          <ellipse class="m-eye" cx="51" cy="56" rx="10" ry="12"/>
+          <ellipse class="m-eye" cx="89" cy="56" rx="10" ry="12"/>
+          <circle class="m-glint" cx="55" cy="51" r="4"/>
+          <circle class="m-glint" cx="93" cy="51" r="4"/>
+          <circle class="m-glint" cx="48" cy="61" r="2"/>
+          <circle class="m-glint" cx="86" cy="61" r="2"/>
+          <path class="m-line" d="M63 80 Q 70 74 77 80"/>
+          <path class="m-tear" d="M37 66 C 33 73, 33 77, 37 78 C 41 77, 41 73, 37 66 Z"/>
+        </g>
+        <g class="face f-joy">
+          <path class="m-line" d="M43 57 Q 51 46 59 57"/>
+          <path class="m-line" d="M81 57 Q 89 46 97 57"/>
+          <path class="m-fill" d="M57 68 Q 70 90 83 68 Z"/>
+        </g>
+      </g>
+    </svg>
+
+    <ol class="pips" id="pips" aria-label="Bước 1 trên 5"><li class="now"></li><li></li><li></li><li></li><li></li></ol>
+
+    <!-- 1. Lời mời -->
+    <section class="screen" id="s-ask" aria-labelledby="h-ask">
+      <span class="sticker">Không ép đâu… nhưng đồng ý đi mà 🙏</span>
+      <h1 id="h-ask" tabindex="-1">Đi <span class="wavy">hẹn hò</span> với <span data-p="a">anh</span> nhé?</h1>
+      <div class="actions">
+        <button type="button" class="btn btn-yes" id="yes">Có 💖</button>
+        <span id="no-slot"><button type="button" class="btn btn-no" id="no">Không</button></span>
+      </div>
+      <p class="tally" id="tally" aria-live="polite"></p>
+    </section>
+
+    <!-- 2. Ăn mừng -->
+    <section class="screen" id="s-yay" aria-labelledby="h-yay" hidden>
+      <span class="sticker">Vui muốn xỉu 🥹</span>
+      <h1 id="h-yay" tabindex="-1">Thật hả? THẬT HẢ?</h1>
+      <p class="lead" id="yay-text"></p>
+      <div class="actions"><button type="button" class="btn btn-primary" id="to-when">Rồi rồi, tiếp đi 😌</button></div>
+    </section>
+
+    <!-- 3. Ngày giờ -->
+    <section class="screen" id="s-when" aria-labelledby="h-when" hidden>
+      <span class="sticker">Chốt lịch thôi 📅</span>
+      <h1 id="h-when" tabindex="-1">Vậy… khi nào <span data-p="e">em</span> rảnh?</h1>
+      <div class="form">
+        <div>
+          <label class="field-label" for="date">Ngày</label>
+          <input class="input" type="date" id="date" required>
+        </div>
+        <fieldset>
+          <legend class="field-label">Giờ</legend>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="time" id="t-0930" value="09:30" data-what="Cà phê sáng cuối tuần ☕"><span class="box"><span class="time">09:30</span><span>Cà phê sáng cuối tuần ☕</span></span></label>
+            <label class="choice"><input type="radio" name="time" id="t-1730" value="17:30" data-what="Dạo phố ngắm hoàng hôn 🌅"><span class="box"><span class="time">17:30</span><span>Dạo phố ngắm hoàng hôn 🌅</span></span></label>
+            <label class="choice"><input type="radio" name="time" id="t-1900" value="19:00" data-what="Ăn tối đàng hoàng 🍽️"><span class="box"><span class="time">19:00</span><span>Ăn tối đàng hoàng 🍽️</span></span></label>
+            <label class="choice"><input type="radio" name="time" id="t-2100" value="21:00" data-what="Đi chơi đêm, tâm sự 🌙"><span class="box"><span class="time">21:00</span><span>Đi chơi đêm, tâm sự 🌙</span></span></label>
+          </div>
+        </fieldset>
+      </div>
+      <p class="hint" id="when-hint" aria-live="polite"></p>
+      <div class="actions"><button type="button" class="btn btn-primary" id="to-food" disabled>Chốt giờ này</button></div>
+    </section>
+
+    <!-- 4. Món ăn -->
+    <section class="screen" id="s-food" aria-labelledby="h-food" hidden>
+      <span class="sticker">Bụng réo rồi nè</span>
+      <h1 id="h-food" tabindex="-1">Mình ăn gì nè?</h1>
+      <p class="lead"><span data-p="E">Em</span> chọn món, <span data-p="a">anh</span> bao.</p>
+      <fieldset class="form">
+        <legend class="visually-hidden">Chọn món</legend>
+        <div class="choices foods">
+          <label class="choice"><input type="radio" name="food" id="f-lau" value="Lẩu" data-emo="🍲"><span class="box"><span class="emo" aria-hidden="true">🍲</span><span>Lẩu</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-pho" value="Phở" data-emo="🍜"><span class="box"><span class="emo" aria-hidden="true">🍜</span><span>Phở</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-buncha" value="Bún chả" data-emo="🥢"><span class="box"><span class="emo" aria-hidden="true">🥢</span><span>Bún chả</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-oc" value="Ốc" data-emo="🐚"><span class="box"><span class="emo" aria-hidden="true">🐚</span><span>Ốc</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-nuong" value="Đồ nướng" data-emo="🍢"><span class="box"><span class="emo" aria-hidden="true">🍢</span><span>Đồ nướng</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-sushi" value="Sushi" data-emo="🍣"><span class="box"><span class="emo" aria-hidden="true">🍣</span><span>Sushi</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-pizza" value="Pizza" data-emo="🍕"><span class="box"><span class="emo" aria-hidden="true">🍕</span><span>Pizza</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-trasua" value="Trà sữa" data-emo="🧋"><span class="box"><span class="emo" aria-hidden="true">🧋</span><span>Trà sữa</span></span></label>
+          <label class="choice"><input type="radio" name="food" id="f-gi" value="Gì cũng được" data-emo="🤷"><span class="box"><span class="emo" aria-hidden="true">🤷</span><span>Gì cũng được</span></span></label>
+        </div>
+      </fieldset>
+      <p class="hint" id="food-hint" aria-live="polite"></p>
+      <div class="actions"><button type="button" class="btn btn-primary" id="to-ticket" disabled>Đi thôi! 🛵</button></div>
+    </section>
+
+    <!-- 5. Vé hẹn -->
+    <section class="screen" id="s-ticket" aria-labelledby="h-ticket" hidden>
+      <span class="sticker">Chốt kèo 💌</span>
+      <h1 id="h-ticket" tabindex="-1">Hẹn rồi đó nha!</h1>
+      <article class="ticket" aria-label="Vé hẹn hò">
+        <div class="ticket-head"><span>VÉ HẸN HÒ</span><span class="no" id="tk-no"></span></div>
+        <dl>
+          <dt>Khi nào</dt><dd id="tk-when"></dd>
+          <dt>Làm gì</dt><dd id="tk-what"></dd>
+          <dt>Ăn gì</dt><dd id="tk-food"></dd>
+          <dt>Đưa đón</dt><dd id="tk-ride"></dd>
+        </dl>
+        <div class="ticket-stub"><p>Không hoàn · Không hủy · Không đổi ý</p><span class="barcode" aria-hidden="true"></span></div>
+      </article>
+      <p class="ps" id="ps"></p>
+      <div class="actions"><button type="button" class="btn btn-primary" id="copy"><span>Sao chép &amp; nhắn cho <span data-p="a">anh</span></span></button></div>
+      <p class="hint" id="copy-hint" aria-live="polite"></p>
+      <textarea class="copy-box" id="copy-box" readonly hidden aria-label="Nội dung để gửi"></textarea>
+      <button type="button" class="btn btn-quiet" id="restart">Làm lại từ đầu</button>
+    </section>
+  </div>
+  <p class="foot">Làm bằng cả trái tim (và vài dòng code)</p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const root = document.documentElement;
+  const css = name => getComputedStyle(root).getPropertyValue(name).trim();
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+
+  /* Cách xưng hô. Mặc định anh–em; thêm #em-anh hoặc #to-cau vào cuối đường link để đổi. */
+  const PRESETS = { "anh-em": ["anh", "em"], "em-anh": ["em", "anh"], "to-cau": ["tớ", "cậu"] };
+  let a = "anh", e = "em";
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+  const state = { step: 0, misses: 0, ticketNo: String(Math.floor(Math.random() * 10000)).padStart(4, "0") };
+
+  const screens = ["s-ask", "s-yay", "s-when", "s-food", "s-ticket"].map($);
+  const pips = [...$("pips").children];
+  const mascot = $("mascot");
+  const yes = $("yes"), no = $("no"), slot = $("no-slot");
+  const dateEl = $("date");
+  let fled = false;
+
+  /* ---------- Ngày tháng ---------- */
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const parseISO = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const fmtDate = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "numeric", month: "long" });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const nextSat = new Date(today);
+  do { nextSat.setDate(nextSat.getDate() + 1); } while (nextSat.getDay() !== 6);
+  dateEl.min = iso(today);
+  dateEl.value = iso(nextSat);
+
+  /* ---------- Hiển thị ---------- */
+  function go(i, focus = true) {
+    state.step = i;
+    screens.forEach((s, j) => { s.hidden = j !== i; });
+    pips.forEach((p, j) => { p.className = j < i ? "done" : j === i ? "now" : ""; });
+    $("pips").setAttribute("aria-label", `Bước ${i + 1} trên ${screens.length}`);
+    no.hidden = i !== 0;
+    render();
+    if (focus) {
+      screens[i].querySelector("h1").focus({ preventScroll: true });
+      window.scrollTo({ top: 0, behavior: reduce.matches ? "auto" : "smooth" });
+    }
+  }
+
+  function render() {
+    document.querySelectorAll("[data-p]").forEach(el => {
+      const k = el.dataset.p;
+      const w = k.toLowerCase() === "a" ? a : e;
+      el.textContent = k === k.toUpperCase() ? cap(w) : w;
+    });
+    const s = state.step;
+    mascot.dataset.mood = s === 0 ? (state.misses ? "plead" : "happy") : (s === 1 || s === 4) ? "joy" : "happy";
+    $("tally").textContent = state.misses ? `Bấm hụt ${state.misses} lần rồi đó. Nút “Có” vẫn đang đợi ${e}.` : "";
+    $("yay-text").textContent =
+      `${cap(a)} còn soạn sẵn cả bài văn ba trang để năn nỉ nếu ${e} bấm “Không”. Giờ khỏi dùng luôn!` +
+      (state.misses ? ` Mà ${e} đã thử bấm “Không” ${state.misses} lần đó nha, ${a} thấy hết rồi 👀` : "");
+    updateWhen();
+    updateFood();
+    if (s === 4) fillTicket();
+  }
+
+  /* ---------- Nút “Không” né tránh ---------- */
+  const noLines = () => [
+    "Chắc chưa?", "Nghĩ lại đi mà", "Bấm nhầm hả?", `${cap(e)} nỡ lòng nào 🥺`, "Hụt rồi nha 😝",
+    "Nút này hỏng rồi", "Né tiếp nè!", `${cap(a)} buồn đó…`, "Bấm “Có” đi mà 🙏"
+  ];
+
+  function dodge(px, py) {
+    if (!fled) {
+      const r = no.getBoundingClientRect();
+      document.body.appendChild(no);
+      no.classList.add("flee");
+      no.style.left = r.left + "px";
+      no.style.top = r.top + "px";
+      void no.offsetWidth;
+      fled = true;
+    }
+    state.misses++;
+    const lines = noLines();
+    no.textContent = state.misses <= lines.length ? lines[state.misses - 1] : lines[Math.floor(Math.random() * lines.length)];
+
+    const bw = no.offsetWidth, bh = no.offsetHeight;
+    const W = root.clientWidth, H = window.innerHeight, m = 14;
+    const y = yes.getBoundingClientRect();
+    let best = null, bestScore = -Infinity;
+    for (let i = 0; i < 30; i++) {
+      const x = m + Math.random() * Math.max(0, W - bw - 2 * m);
+      const t = m + Math.random() * Math.max(0, H - bh - 2 * m);
+      const hitsYes = x < y.right + 16 && x + bw > y.left - 16 && t < y.bottom + 16 && t + bh > y.top - 16;
+      if (hitsYes) continue;
+      const d = Math.hypot(x + bw / 2 - px, t + bh / 2 - py);
+      const score = Math.min(d, 260) + Math.random() * 80;
+      if (score > bestScore) { bestScore = score; best = { x, t }; }
+    }
+    if (best) { no.style.left = best.x + "px"; no.style.top = best.t + "px"; }
+    no.style.setProperty("--tilt", (Math.random() * 14 - 7).toFixed(1) + "deg");
+    yes.style.setProperty("--grow", Math.min(1 + state.misses * 0.07, 1.55).toFixed(2));
+
+    mascot.classList.remove("shake");
+    void mascot.getBoundingClientRect();
+    mascot.classList.add("shake");
+    render();
+  }
+
+  no.addEventListener("pointerenter", ev => { if (ev.pointerType === "mouse") dodge(ev.clientX, ev.clientY); });
+  no.addEventListener("pointerdown", ev => { ev.preventDefault(); dodge(ev.clientX, ev.clientY); });
+  no.addEventListener("click", ev => {
+    ev.preventDefault();
+    if (ev.detail === 0) { const r = no.getBoundingClientRect(); dodge(r.left + r.width / 2, r.top + r.height / 2); }
+  });
+  mascot.addEventListener("animationend", ev => { if (ev.animationName === "shake") mascot.classList.remove("shake"); });
+
+  addEventListener("resize", () => {
+    if (!fled) return;
+    const r = no.getBoundingClientRect();
+    const W = root.clientWidth, H = window.innerHeight;
+    no.style.left = Math.max(14, Math.min(parseFloat(no.style.left) || 14, W - r.width - 14)) + "px";
+    no.style.top = Math.max(14, Math.min(parseFloat(no.style.top) || 14, H - r.height - 14)) + "px";
+  });
+
+  yes.addEventListener("click", () => {
+    const r = yes.getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top + r.height / 2, 90);
+    go(1);
+  });
+  $("to-when").addEventListener("click", () => go(2));
+
+  /* ---------- Chọn ngày giờ ---------- */
+  function updateWhen() {
+    const v = dateEl.value;
+    const t = document.querySelector('input[name="time"]:checked');
+    let msg, ok = false;
+    if (!v) msg = `Chọn ngày ${e} rảnh nha.`;
+    else if (parseISO(v) < today) msg = "Ngày này qua mất rồi, chọn ngày khác nha.";
+    else if (!t) msg = "Chọn thêm giờ nữa là xong.";
+    else { ok = true; msg = `${cap(fmtDate.format(parseISO(v)))} lúc ${t.value}. Nghe được đó!`; }
+    $("when-hint").textContent = msg;
+    $("to-food").disabled = !ok;
+  }
+  dateEl.addEventListener("input", updateWhen);
+  dateEl.addEventListener("change", updateWhen);
+  document.querySelectorAll('input[name="time"]').forEach(r => r.addEventListener("change", updateWhen));
+  $("to-food").addEventListener("click", () => go(3));
+
+  /* ---------- Chọn món ---------- */
+  function updateFood() {
+    const f = document.querySelector('input[name="food"]:checked');
+    $("to-ticket").disabled = !f;
+    $("food-hint").textContent = !f ? "Chọn một món thôi nha."
+      : f.value === "Gì cũng được" ? `Biết ngay mà. Để ${a} lo 😌`
+      : `${f.value} hả? Chuẩn bài!`;
+  }
+  document.querySelectorAll('input[name="food"]').forEach(r => r.addEventListener("change", updateFood));
+  $("to-ticket").addEventListener("click", () => {
+    go(4);
+    burst(window.innerWidth / 2, window.innerHeight * 0.35, 60);
+  });
+
+  /* ---------- Vé hẹn ---------- */
+  function plan() {
+    const t = document.querySelector('input[name="time"]:checked');
+    const f = document.querySelector('input[name="food"]:checked');
+    const d = dateEl.value ? cap(fmtDate.format(parseISO(dateEl.value))) : "";
+    const food = !f ? "" : f.value === "Gì cũng được" ? `Gì cũng được, để ${a} lo ${f.dataset.emo}` : `${f.value} ${f.dataset.emo}`;
+    return {
+      when: t ? `${d} · ${t.value}` : d,
+      whenLong: t ? `${d} lúc ${t.value}` : d,
+      what: t ? t.dataset.what : "",
+      food,
+      ride: `${cap(a)} qua tận nhà đón ${e} 🛵`
+    };
+  }
+  function fillTicket() {
+    const p = plan();
+    $("tk-no").textContent = `Số ${state.ticketNo}`;
+    $("tk-when").textContent = p.when;
+    $("tk-what").textContent = p.what;
+    $("tk-food").textContent = p.food;
+    $("tk-ride").textContent = p.ride;
+    $("ps").textContent = `Tái bút: người ta rủ đi chơi thì nhắn một tin. Còn ${a} làm hẳn cái web này trong giờ nghỉ trưa. Chuyện nhỏ thôi 😎`;
+  }
+  function message() {
+    const p = plan();
+    return [
+      `${cap(e)} đồng ý đi hẹn hò với ${a} rồi nè 💌`,
+      `🗓 ${p.whenLong} (${p.what})`,
+      `🍽 Ăn: ${p.food}`,
+      `🛵 Nhớ qua đón ${e} đúng giờ nha!`,
+      `Vé số ${state.ticketNo}: không hoàn, không hủy, không đổi ý 😤`
+    ].join("\n");
+  }
+  $("copy").addEventListener("click", async () => {
+    const text = message();
+    const box = $("copy-box");
+    try {
+      await navigator.clipboard.writeText(text);
+      box.hidden = true;
+      $("copy-hint").textContent = `Đã chép! Mở Zalo hoặc Messenger, dán vào rồi gửi cho ${a} nhé 💬`;
+    } catch (err) {
+      box.value = text;
+      box.hidden = false;
+      box.focus();
+      box.select();
+      $("copy-hint").textContent = "Trình duyệt không cho chép tự động. Bôi đen đoạn bên dưới rồi chép tay nhé.";
+    }
+  });
+
+  $("restart").addEventListener("click", () => {
+    state.misses = 0;
+    fled = false;
+    no.classList.remove("flee");
+    no.style.left = "";
+    no.style.top = "";
+    no.style.removeProperty("--tilt");
+    no.textContent = "Không";
+    slot.appendChild(no);
+    yes.style.removeProperty("--grow");
+    $("copy-box").hidden = true;
+    $("copy-hint").textContent = "";
+    document.querySelectorAll('input[type="radio"]').forEach(r => { r.checked = false; });
+    dateEl.value = iso(nextSat);
+    go(0);
+  });
+
+  /* ---------- Tim bay ---------- */
+  const cv = $("confetti"), cx = cv.getContext("2d");
+  let parts = [], raf = 0, inkColor = "#3B1230";
+  function sizeCanvas() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = window.innerWidth * dpr;
+    cv.height = window.innerHeight * dpr;
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function heartPath(s) {
+    cx.beginPath();
+    cx.moveTo(0, s * 0.38);
+    cx.bezierCurveTo(-s * 1.05, -s * 0.3, -s * 0.5, -s * 1.05, 0, -s * 0.45);
+    cx.bezierCurveTo(s * 0.5, -s * 1.05, s * 1.05, -s * 0.3, 0, s * 0.38);
+    cx.closePath();
+  }
+  function burst(x, y, n) {
+    if (reduce.matches || !cx) return;
+    sizeCanvas();
+    inkColor = css("--ink");
+    const colors = [css("--cherry"), css("--butter"), css("--pink"), css("--paper")];
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 8;
+      parts.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 5, s: 6 + Math.random() * 9,
+        r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.25, c: colors[i % colors.length], life: 0, max: 80 + Math.random() * 60 });
+    }
+    if (!raf) raf = requestAnimationFrame(tick);
+  }
+  function tick() {
+    cx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    parts = parts.filter(p => p.life < p.max);
+    for (const p of parts) {
+      p.life++;
+      p.vy += 0.2; p.vx *= 0.985; p.vy *= 0.99;
+      p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      cx.save();
+      cx.globalAlpha = Math.max(0, Math.min(1, (p.max - p.life) / (p.max * 0.35)));
+      cx.translate(p.x, p.y);
+      cx.rotate(p.r);
+      heartPath(p.s);
+      cx.fillStyle = p.c; cx.fill();
+      cx.lineWidth = 1.6; cx.strokeStyle = inkColor; cx.stroke();
+      cx.restore();
+    }
+    raf = parts.length ? requestAnimationFrame(tick) : 0;
+  }
+
+  /* ---------- Khởi động ---------- */
+  function applyPreset() {
+    [a, e] = PRESETS[location.hash.slice(1)] || PRESETS["anh-em"];
+    render();
+  }
+  addEventListener("hashchange", applyPreset);
+  [a, e] = PRESETS[location.hash.slice(1)] || PRESETS["anh-em"];
+  go(0, false);
+})();
+</script>
+</body>
+</html>
