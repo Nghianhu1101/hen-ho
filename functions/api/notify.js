@@ -85,11 +85,72 @@ function configured(env) {
     && typeof env?.NOTIFICATION_STATE?.put === 'function';
 }
 
-function notification(ticket) {
+function boundedLocation(value) {
+  if (typeof value !== 'string') return '';
+  return value.slice(0, 256)
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+
+function validIp(value) {
+  if (typeof value !== 'string') return '';
+  const ip = value.trim();
+  if (ip.length > 45) return '';
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip) && ip.split('.').every(part => Number(part) <= 255)) return ip;
+  if (!ip.includes(':') || !/^[\da-f:.]+$/i.test(ip)) return '';
+  try {
+    new URL(`http://[${ip}]/`);
+    return ip;
+  } catch {
+    return '';
+  }
+}
+
+function visitorIp(request) {
+  const edgeIp = validIp(request.headers.get('CF-Connecting-IP'));
+  // Only Pseudo IPv4 overwrite mode may replace the ordinary edge address with this header.
+  if (edgeIp.includes('.') && !edgeIp.includes(':') && Number(edgeIp.split('.')[0]) >= 240) {
+    const ipv6 = validIp(request.headers.get('CF-Connecting-IPv6'));
+    if (ipv6.includes(':')) return ipv6;
+  }
+  return edgeIp || 'Không rõ';
+}
+
+function browserAndOs(request) {
+  const ua = (request.headers.get('User-Agent') || '').slice(0, 512);
+  const browser = [
+    [/Edg(?:e|A|iOS)?\//i, 'Edge'],
+    [/Firefox\/|FxiOS\//i, 'Firefox'],
+    [/Chrome\/|CriOS\//i, 'Chrome'],
+    [/Safari\//i, 'Safari'],
+  ].find(([pattern]) => pattern.test(ua))?.[1] || 'Không rõ';
+  const os = [
+    [/Android/i, 'Android'],
+    [/iPhone|iPad|iPod/i, 'iOS'],
+    [/Windows/i, 'Windows'],
+    [/Macintosh|Mac OS X/i, 'macOS'],
+    [/CrOS/i, 'ChromeOS'],
+    [/Linux/i, 'Linux'],
+  ].find(([pattern]) => pattern.test(ua))?.[1] || 'Không rõ';
+  return { browser, os };
+}
+
+function confirmationTime() {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+function notification(ticket, request) {
   const [a, e] = PRONOUNS[ticket.pronouns];
   const [year, month, day] = ticket.date.split('-');
   const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
   const food = ticket.food === 'gi' ? `Gì cũng được, để ${a} lo 🤷` : FOODS[ticket.food];
+  const location = [request.cf?.city, request.cf?.region, request.cf?.country].map(boundedLocation).filter(Boolean).join(', ') || 'Không rõ';
+  const { browser, os } = browserAndOs(request);
   return [
     `${cap(e)} đồng ý đi hẹn hò với ${a} rồi nè 💌`,
     `🗓 ${day}/${month}/${year} lúc ${ticket.time} (giờ Việt Nam)`,
@@ -97,6 +158,12 @@ function notification(ticket) {
     `🍽 Ăn: ${food}`,
     `🛵 ${cap(a)} qua tận nhà đón ${e}`,
     `Vé số ${ticket.ticketNo}`,
+    '',
+    'Thông tin lượt xác nhận:',
+    `IP: ${visitorIp(request)}`,
+    `Vị trí gần đúng: ${location}`,
+    `Trình duyệt: ${browser} · Hệ điều hành: ${os}`,
+    `Xác nhận lúc: ${confirmationTime()} (giờ Việt Nam, UTC+7)`,
   ].join('\n');
 }
 
@@ -118,7 +185,7 @@ async function rateLimited(state, ip) {
   return false;
 }
 
-async function sendTelegram(env, ticket) {
+async function sendTelegram(env, ticket, request) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   let response;
@@ -126,7 +193,7 @@ async function sendTelegram(env, ticket) {
     response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: notification(ticket) }),
+      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: notification(ticket, request) }),
       signal: controller.signal,
       redirect: 'manual',
     });
@@ -172,7 +239,7 @@ export async function onRequest({ request, env }) {
   } catch {
     return failure(503, 'unavailable');
   }
-  if (!await sendTelegram(env, ticket)) return failure(502, 'notification_failed');
+  if (!await sendTelegram(env, ticket, request)) return failure(502, 'notification_failed');
   try {
     await state.put(completedKey, 'sent', { expirationTtl: 86400 });
   } catch {

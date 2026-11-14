@@ -52,6 +52,12 @@ Người nhận tin riêng phải mở bot và nhấn **Start** trước. Đừn
 
 Thông báo chỉ gửi khi bấm **Đi thôi!** sau khi chọn lịch và món ăn. Các lần tải trang, đổi cách xưng hô hay sao chép vé không gửi tin. Nếu mạng lỗi, có nút thử lại. Không tự động gửi lại khi chưa biết kết quả. KV cung cấp chống lặp/giới hạn theo khả năng nhất quán của KV, không bảo đảm gửi đúng một lần trong mọi tình huống.
 
+### Thông tin người chốt lịch
+
+Thông báo Telegram gửi kèm IP kết nối do Cloudflare cung cấp, khu vực gần đúng (thành phố/tỉnh/quốc gia nếu có), loại trình duyệt/hệ điều hành và thời điểm chốt theo giờ Việt Nam. Khách không cần nhập tên. Các thông tin này không xác nhận danh tính thật; IP có thể dùng chung hoặc đi qua VPN và vị trí có thể không chính xác.
+
+Trước nút chốt có thông báo rõ dữ liệu được gửi cho người mời. Chỉ thu thập ở lượt chốt lịch; không gửi khi vừa mở trang. Không xin GPS, thêm cookie hay dịch vụ định vị bên ngoài. Không lưu IP gốc/thiết bị/vị trí vào KV hoặc log của ứng dụng; dữ liệu được đưa vào tin riêng Telegram. Bộ đếm chống gửi quá nhiều vẫn dùng IP đã băm như trước.
+
 ## Triển khai
 
 ```sh

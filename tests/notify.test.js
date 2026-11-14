@@ -80,7 +80,7 @@ function cloudflareTransport(reply) {
 }
 
 async function notify(payload = fixture(), options = {}) {
-  const { env = environment(), method = 'POST', headers = {}, body = JSON.stringify(payload) } = options;
+  const { env = environment(), method = 'POST', headers = {}, cf, body = JSON.stringify(payload) } = options;
   const request = new Request('https://henho.example/api/notify', {
     method,
     headers: {
@@ -91,6 +91,7 @@ async function notify(payload = fixture(), options = {}) {
     },
     ...(method !== 'GET' && method !== 'HEAD' ? { body } : {}),
   });
+  if (cf !== undefined) Object.defineProperty(request, 'cf', { value: cf });
   const response = await onRequest({ request, env });
   assert.equal(response.headers.get('cache-control'), 'no-store');
   assert.match(response.headers.get('content-type'), /application\/json/);
@@ -493,4 +494,100 @@ test('a Telegram 302 is not followed, accepted, or remembered as a completed del
   assert.equal(calls.length, 2);
   await notify(ticket, { env });
   assert.equal(calls.length, 2);
+});
+
+test('visitor context comes from the server request and the current Vietnam time, ignoring body metadata', async () => {
+  const env = environment();
+  const calls = acceptTelegram();
+  const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+  const started = Date.now();
+  const result = await notify(fixture({
+    name: 'Spoofed Visitor Name',
+    ip: '198.51.100.99',
+    location: 'Spoofed Location',
+    userAgent: 'Spoofed Browser',
+    timestamp: '2099-12-25T19:00:00Z',
+  }), {
+    env,
+    cf: { city: 'Hanoi', region: 'Hanoi', country: 'VN' },
+    headers: { 'User-Agent': userAgent, 'X-Forwarded-For': '198.51.100.98' },
+  });
+  assert.equal(result.response.status, 200);
+  const text = calls[0].payload.text;
+  assert.ok(text.indexOf('IP: 203.0.113.42') > text.indexOf('Vé số 0042'));
+  assert.match(text, /Vị trí gần đúng: Hanoi, Hanoi, VN/);
+  assert.match(text, /Trình duyệt: Chrome · Hệ điều hành: Windows/);
+  const confirmed = text.match(/Xác nhận lúc: (\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2}) \(giờ Việt Nam, UTC\+7\)/);
+  assert.ok(confirmed, 'The actual confirmation timestamp must be labelled as Vietnam time');
+  const [, day, month, year, hour, minute, second] = confirmed;
+  const instant = Date.parse(`${year}-${month}-${day}T${hour}:${minute}:${second}+07:00`);
+  assert.ok(instant >= started - 1000 && instant <= Date.now());
+  assert.doesNotMatch(text, /Spoofed|198\.51\.100\.|Mozilla\/|Chrome\/130/);
+  assert.equal(calls[0].payload.parse_mode, undefined);
+  assert.doesNotMatch(JSON.stringify([...env.NOTIFICATION_STATE.records]), /203\.0\.113\.42|Mozilla|Hanoi/);
+  assert.deepEqual(capturedLogs, []);
+});
+
+test('missing visitor context uses unknown labels and does not use body, forwarded IP, or IPv6 overrides', async () => {
+  const calls = acceptTelegram();
+  const result = await notify(fixture({ ip: '198.51.100.99', name: 'Spoofed Name' }), {
+    headers: { 'CF-Connecting-IP': '', 'CF-Connecting-IPv6': '2001:db8::99', 'X-Forwarded-For': '198.51.100.98', 'User-Agent': '' },
+  });
+  assert.equal(result.response.status, 200);
+  const text = calls[0].payload.text;
+  assert.match(text, /IP: Không rõ/);
+  assert.match(text, /Vị trí gần đúng: Không rõ/);
+  assert.match(text, /Trình duyệt: Không rõ · Hệ điều hành: Không rõ/);
+  assert.doesNotMatch(text, /Spoofed|198\.51\.100\.|2001:db8/);
+});
+
+for (const [label, userAgent, browser, os] of [
+  ['Android Chrome', 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36', 'Chrome', 'Android'],
+  ['iPhone Safari', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1', 'Safari', 'iOS'],
+  ['macOS Firefox', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.0; rv:130.0) Gecko/20100101 Firefox/130.0', 'Firefox', 'macOS'],
+  ['Windows Edge', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0', 'Edge', 'Windows'],
+]) {
+  test(`visitor context identifies ${label} without sending its raw user agent`, async () => {
+    const calls = acceptTelegram();
+    const result = await notify(fixture(), { headers: { 'User-Agent': userAgent } });
+    assert.equal(result.response.status, 200);
+    assert.ok(calls[0].payload.text.includes(`Trình duyệt: ${browser} · Hệ điều hành: ${os}`));
+    assert.doesNotMatch(calls[0].payload.text, /Mozilla|AppleWebKit|130\.0|605\.1/);
+  });
+}
+
+test('visitor context uses the IPv6 override only for a Class E pseudo IPv4 edge address', async () => {
+  for (const [edgeIP, expected] of [
+    ['240.12.34.56', '2001:db8::42'],
+    ['255.12.34.56', '2001:db8::42'],
+    ['239.12.34.56', '239.12.34.56'],
+    ['203.0.113.42', '203.0.113.42'],
+    ['2001:db8::1234', '2001:db8::1234'],
+  ]) {
+    const calls = acceptTelegram();
+    const result = await notify(fixture(), {
+      headers: { 'CF-Connecting-IP': edgeIP, 'CF-Connecting-IPv6': '2001:db8::42' },
+    });
+    assert.equal(result.response.status, 200);
+    assert.ok(calls[0].payload.text.split('\n').includes(`IP: ${expected}`), `Wrong IP selection for ${edgeIP}`);
+  }
+});
+
+test('visitor context bounds and sanitizes location values while displaying only coarse UA labels', async () => {
+  const calls = acceptTelegram();
+  const result = await notify(fixture(), {
+    cf: { city: `Hanoi\nINJECTED\u0000\u2028\u202e${'x'.repeat(300)}`, region: { malicious: 'object' }, country: 'VN' },
+    headers: { 'User-Agent': `private-device-name\t${'x'.repeat(3000)}Chrome/130.0.0.0` },
+  });
+  assert.equal(result.response.status, 200);
+  const text = calls[0].payload.text;
+  const location = text.split('\n').find(line => line.startsWith('Vị trí gần đúng: '));
+  assert.ok(location, 'The bounded location must remain on one line');
+  assert.ok(location.length <= 110);
+  assert.match(location, /Hanoi INJECTED/);
+  assert.match(location, /, VN$/);
+  assert.doesNotMatch(text, /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/);
+  assert.doesNotMatch(text, /private-device-name|malicious|\[object Object\]|Chrome\/130/);
+  assert.match(text, /Trình duyệt: Không rõ · Hệ điều hành: Không rõ/);
+  assert.equal(calls[0].payload.parse_mode, undefined);
 });
