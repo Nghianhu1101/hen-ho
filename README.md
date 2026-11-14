@@ -60,6 +60,14 @@ Trước nút chốt có thông báo rõ dữ liệu được gửi cho người
 
 ## Triển khai
 
+### Link riêng theo nhãn
+
+Các link dạng `/A-<mã ngẫu nhiên>` đến `/E-<mã ngẫu nhiên>` dùng chung giao diện. Khi chốt lịch, máy chủ tra mã đầy đủ trong KV `NOTIFICATION_STATE` (`invite:<mã>` → nhãn) rồi thêm dòng **Link được gán cho: A** vào Telegram. Nhãn từ trình duyệt hay chữ cái đầu đường dẫn không đủ để xác nhận; chỉ mã đã cấu hình mới được gán nhãn.
+
+Trang gốc vẫn hoạt động như trước và gửi vé không có nhãn. Mã hợp lệ về cấu trúc nhưng không được cấu hình sẽ bị từ chối gửi thông báo. Link bị chuyển tiếp vẫn giữ nhãn ban đầu; đây là nhận diện đường link, không phải xác minh danh tính.
+
+Các mã đang dùng được giữ trong KV và file chủ sở hữu nằm ngoài Git; không đưa danh sách mã thật vào tài nguyên tĩnh hoặc repo công khai. Module dùng đường dẫn tuyệt đối và bản build tạo `_redirects` để các link có hoặc không có dấu `/` cuối đều mở được giao diện.
+
 ```sh
 npm run deploy
 ```

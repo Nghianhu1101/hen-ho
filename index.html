@@ -241,7 +241,7 @@ legend{padding:0}
         </div>
       </fieldset>
       <p class="hint" id="food-hint" aria-live="polite"></p>
-      <p class="hint" id="privacy-notice">Khi chốt lịch, IP, khu vực gần đúng và thông tin trình duyệt/hệ điều hành của bạn sẽ được gửi riêng cho người mời cùng vé hẹn.</p>
+      <p class="hint" id="privacy-notice">Khi chốt lịch, mã link, IP, khu vực gần đúng và thông tin trình duyệt/hệ điều hành của bạn sẽ được gửi riêng cho người mời cùng vé hẹn.</p>
       <div class="actions"><button type="button" class="btn btn-primary" id="to-ticket" aria-describedby="privacy-notice" disabled>Đi thôi! 🛵</button></div>
     </section>
 
@@ -272,8 +272,8 @@ legend{padding:0}
 </main>
 
 <script type="module">
-import { createTicketNotifier } from "./notification-client.js";
-import { bangkokDateString } from "./date-utils.js";
+import { createTicketNotifier, invitationCodeFromPath } from "/notification-client.js";
+import { bangkokDateString } from "/date-utils.js";
 
 (() => {
   const $ = id => document.getElementById(id);
@@ -293,6 +293,7 @@ import { bangkokDateString } from "./date-utils.js";
   const mascot = $("mascot");
   const yes = $("yes"), no = $("no"), slot = $("no-slot");
   const dateEl = $("date");
+  const inviteCode = invitationCodeFromPath(location.pathname);
   let fled = false;
   let confirmedTicket = null;
   const notifier = createTicketNotifier({
@@ -455,7 +456,8 @@ import { bangkokDateString } from "./date-utils.js";
       date: dateEl.value,
       time: document.querySelector('input[name="time"]:checked').value,
       food: document.querySelector('input[name="food"]:checked').id.slice(2),
-      pronouns: Object.keys(PRESETS).find(key => PRESETS[key][0] === a && PRESETS[key][1] === e) || "anh-em"
+      pronouns: Object.keys(PRESETS).find(key => PRESETS[key][0] === a && PRESETS[key][1] === e) || "anh-em",
+      inviteCode
     };
     void notifier.notify(confirmedTicket);
   });

@@ -591,3 +591,112 @@ test('visitor context bounds and sanitizes location values while displaying only
   assert.match(text, /Trình duyệt: Không rõ · Hệ điều hành: Không rõ/);
   assert.equal(calls[0].payload.parse_mode, undefined);
 });
+
+// Synthetic fixture codes only; real invitation mappings are provisioned privately in KV.
+const inviteA = `A-${'a'.repeat(32)}`;
+const inviteE = `E-${'e'.repeat(32)}`;
+
+function withInvitation(code, label) {
+  const env = environment();
+  env.NOTIFICATION_STATE.records.set(`invite:${code}`, { value: label, expires: Infinity });
+  return env;
+}
+
+test('invitation attribution uses the private A/E mapping, including aliases, and ignores body labels', async () => {
+  for (const [inviteCode, label] of [[inviteA, 'A'], [inviteE, 'E'], [inviteA, 'Private Alias']]) {
+    const env = withInvitation(inviteCode, label);
+    const calls = acceptTelegram();
+    const result = await notify(fixture({ inviteCode, inviteLabel: 'Spoofed Label', name: 'Spoofed Person' }), { env });
+    assert.equal(result.response.status, 200);
+    assert.deepEqual(result.body, { ok: true });
+    assert.ok(calls[0].payload.text.split('\n').includes(`Link được gán cho: ${label}`));
+    assert.ok(!calls[0].payload.text.includes(inviteCode));
+    assert.doesNotMatch(calls[0].payload.text, /Spoofed/);
+    assert.deepEqual(capturedLogs, []);
+  }
+});
+
+test('invitation prefix or suffix tampering is rejected without sending or exposing the private mapping', async () => {
+  const env = withInvitation(inviteA, 'Private Alias');
+  for (const inviteCode of [`B-${'a'.repeat(32)}`, `A-${'a'.repeat(31)}b`]) {
+    await rejectsWithoutSending(fixture({ inviteCode, inviteLabel: 'Private Alias' }), { env }, 400, 'invalid_invite');
+    assert.equal(env.NOTIFICATION_STATE.records.size, 1, 'Invalid links must not consume rate or dedup state');
+  }
+  assert.deepEqual(capturedLogs, []);
+});
+
+test('invitation malformed shapes and wrong types are rejected before any KV lookup or send', async () => {
+  const env = environment();
+  env.NOTIFICATION_STATE.get = async () => { throw new Error('Malformed invitations must not reach storage'); };
+  for (const inviteCode of [
+    `a-${'a'.repeat(32)}`, `A-${'a'.repeat(31)}`, `A-${'A'.repeat(32)}`, `${inviteA}\n`, '', null, 42, [inviteA],
+  ]) {
+    await rejectsWithoutSending(fixture({ inviteCode }), { env }, 400, 'invalid_invite');
+  }
+  assert.deepEqual(capturedLogs, []);
+});
+
+test('invitation absence preserves the root flow without attribution or a mapping lookup', async () => {
+  const env = environment();
+  const realGet = env.NOTIFICATION_STATE.get.bind(env.NOTIFICATION_STATE);
+  env.NOTIFICATION_STATE.get = async key => {
+    assert.ok(!key.startsWith('invite:'), 'The root flow must not look up an invitation');
+    return realGet(key);
+  };
+  const calls = acceptTelegram();
+  const result = await notify(fixture({ inviteLabel: 'Spoofed Label', name: 'Spoofed Person' }), { env });
+  assert.equal(result.response.status, 200);
+  assert.deepEqual(result.body, { ok: true });
+  assert.match(calls[0].payload.text, /Vé số 0042/);
+  assert.match(calls[0].payload.text, /IP: 203\.0\.113\.42/);
+  assert.doesNotMatch(calls[0].payload.text, /Link được gán cho|Spoofed/);
+});
+
+test('invitation revocation is checked before successful-request deduplication or an exhausted rate limit', async () => {
+  const env = withInvitation(inviteA, 'A');
+  const calls = acceptTelegram();
+  const tickets = [];
+  for (let index = 0; index < 5; index++) {
+    const ticket = fixture({ inviteCode: inviteA });
+    tickets.push(ticket);
+    assert.equal((await notify(ticket, { env })).response.status, 200);
+  }
+  env.NOTIFICATION_STATE.records.delete(`invite:${inviteA}`);
+  const result = await notify(tickets[0], { env });
+  assert.equal(result.response.status, 400);
+  assert.deepEqual(result.body, { ok: false, error: 'invalid_invite' });
+  assert.equal(calls.length, 5);
+  assert.deepEqual(capturedLogs, []);
+});
+
+test('invitation KV lookup failures return a generic service error without logging code or mapping', async () => {
+  const env = withInvitation(inviteA, 'Private Alias');
+  const realGet = env.NOTIFICATION_STATE.get.bind(env.NOTIFICATION_STATE);
+  env.NOTIFICATION_STATE.get = async key => {
+    if (key.startsWith('invite:')) throw new Error(`${inviteA} Private Alias private mapping failure`);
+    return realGet(key);
+  };
+  await rejectsWithoutSending(fixture({ inviteCode: inviteA }), { env }, 503, 'unavailable');
+  assert.deepEqual(capturedLogs, []);
+});
+
+test('invitation corrupt mapping records fail closed without sending, logging, or returning their contents', async () => {
+  for (const label of ['', '   ', 42, 'x'.repeat(81), 'A\nInjected', 'A\u0000', 'A\u202e']) {
+    const env = withInvitation(inviteA, label);
+    await rejectsWithoutSending(fixture({ inviteCode: inviteA }), { env }, 503, 'unavailable');
+    assert.equal(env.NOTIFICATION_STATE.records.size, 1);
+  }
+  assert.deepEqual(capturedLogs, []);
+});
+
+test('invitation aliases may contain ordinary Unicode and reach the 80-character limit', async () => {
+  const label = `Nhóm ${'a'.repeat(75)}`;
+  assert.equal(label.length, 80);
+  const env = withInvitation(inviteA, label);
+  const calls = acceptTelegram();
+  const result = await notify(fixture({ inviteCode: inviteA }), { env });
+  assert.equal(result.response.status, 200);
+  assert.ok(calls[0].payload.text.split('\n').includes(`Link được gán cho: ${label}`));
+  assert.deepEqual(result.body, { ok: true });
+  assert.deepEqual(capturedLogs, []);
+});

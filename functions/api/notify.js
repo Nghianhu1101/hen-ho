@@ -25,6 +25,7 @@ const PRONOUNS = {
 
 const MAX_BODY_BYTES = 2048;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INVITE_CODE = /^[A-Z]-[0-9a-f]{32}$/;
 
 function json(status, value) {
   return Response.json(value, {
@@ -144,7 +145,7 @@ function confirmationTime() {
   return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
-function notification(ticket, request) {
+function notification(ticket, request, inviteLabel) {
   const [a, e] = PRONOUNS[ticket.pronouns];
   const [year, month, day] = ticket.date.split('-');
   const cap = word => word.charAt(0).toUpperCase() + word.slice(1);
@@ -152,6 +153,7 @@ function notification(ticket, request) {
   const location = [request.cf?.city, request.cf?.region, request.cf?.country].map(boundedLocation).filter(Boolean).join(', ') || 'Không rõ';
   const { browser, os } = browserAndOs(request);
   return [
+    ...(inviteLabel === undefined ? [] : [`Link được gán cho: ${inviteLabel}`]),
     `${cap(e)} đồng ý đi hẹn hò với ${a} rồi nè 💌`,
     `🗓 ${day}/${month}/${year} lúc ${ticket.time} (giờ Việt Nam)`,
     `Hoạt động: ${ACTIVITIES[ticket.time]}`,
@@ -185,7 +187,7 @@ async function rateLimited(state, ip) {
   return false;
 }
 
-async function sendTelegram(env, ticket, request) {
+async function sendTelegram(env, ticket, request, inviteLabel) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   let response;
@@ -193,7 +195,7 @@ async function sendTelegram(env, ticket, request) {
     response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: notification(ticket, request) }),
+      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: notification(ticket, request, inviteLabel) }),
       signal: controller.signal,
       redirect: 'manual',
     });
@@ -230,16 +232,27 @@ export async function onRequest({ request, env }) {
   const { ticket, error } = await readTicket(request);
   if (error) return failure(error === 'payload_too_large' ? 413 : 400, error);
   if (!validTicket(ticket)) return failure(400, 'invalid_request');
+  const hasInvite = Object.hasOwn(ticket, 'inviteCode');
+  if (hasInvite && (typeof ticket.inviteCode !== 'string' || ticket.inviteCode.length !== 34 || !INVITE_CODE.test(ticket.inviteCode))) {
+    return failure(400, 'invalid_invite');
+  }
   if (!configured(env)) return failure(503, 'not_configured');
   const state = env.NOTIFICATION_STATE;
   const completedKey = `sent:${ticket.requestId.toLowerCase()}`;
+  let inviteLabel;
   try {
+    if (hasInvite) {
+      inviteLabel = await state.get(`invite:${ticket.inviteCode}`);
+      if (inviteLabel === null) return failure(400, 'invalid_invite');
+      if (typeof inviteLabel !== 'string' || inviteLabel.length > 80 || inviteLabel.trim() === ''
+        || /[\p{Cc}\p{Cf}\u2028\u2029]/u.test(inviteLabel)) return failure(503, 'unavailable');
+    }
     if (await state.get(completedKey) === 'sent') return json(200, { ok: true });
     if (await rateLimited(state, request.headers.get('CF-Connecting-IP'))) return failure(429, 'rate_limited');
   } catch {
     return failure(503, 'unavailable');
   }
-  if (!await sendTelegram(env, ticket, request)) return failure(502, 'notification_failed');
+  if (!await sendTelegram(env, ticket, request, inviteLabel)) return failure(502, 'notification_failed');
   try {
     await state.put(completedKey, 'sent', { expirationTtl: 86400 });
   } catch {

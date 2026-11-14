@@ -1,9 +1,13 @@
+export function invitationCodeFromPath(pathname) {
+  return typeof pathname === 'string' ? /^\/([A-Z]-[0-9a-f]{32})\/?$/.exec(pathname)?.[1] : undefined;
+}
+
 export function createTicketNotifier({ fetchImpl = globalThis.fetch, onStatus = () => {} } = {}) {
   const entries = new Map();
   let version = 0;
 
   function notify(ticket) {
-    const fields = ['ticketNo', 'date', 'time', 'food', 'pronouns'];
+    const fields = ['ticketNo', 'date', 'time', 'food', 'pronouns', 'inviteCode'];
     const payload = Object.fromEntries(fields.map(field => [field, ticket[field]]));
     const key = JSON.stringify(payload);
     let entry = entries.get(key);
