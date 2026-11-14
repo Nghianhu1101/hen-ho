@@ -128,7 +128,7 @@ async function sendTelegram(env, ticket) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: notification(ticket) }),
       signal: controller.signal,
-      redirect: 'error',
+      redirect: 'manual',
     });
     const result = await response.json();
     if (response.ok && result?.ok === true) return true;

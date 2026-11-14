@@ -69,6 +69,16 @@ function acceptTelegram(calls = []) {
   return calls;
 }
 
+function cloudflareTransport(reply) {
+  return async (url, init) => {
+    // Workers supports follow/manual, unlike Node's additional error mode.
+    if (!['follow', 'manual'].includes(init.redirect ?? 'follow')) {
+      throw new TypeError('Unsupported redirect mode');
+    }
+    return reply(url, init);
+  };
+}
+
 async function notify(payload = fixture(), options = {}) {
   const { env = environment(), method = 'POST', headers = {}, body = JSON.stringify(payload) } = options;
   const request = new Request('https://henho.example/api/notify', {
@@ -444,4 +454,43 @@ test('diagnostics stay silent after a confirmed successful Telegram delivery', a
   const result = await notify();
   assert.equal(result.response.status, 200);
   assert.deepEqual(capturedLogs, []);
+});
+
+test('the Telegram transport succeeds with a Cloudflare-supported redirect mode', async () => {
+  const calls = [];
+  globalThis.fetch = cloudflareTransport(async (url, init) => {
+    calls.push({ url, init });
+    return Response.json({ ok: true, result: { message_id: 1 } });
+  });
+  const result = await notify();
+  assert.equal(result.response.status, 200);
+  assert.deepEqual(result.body, { ok: true });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].init.redirect, 'manual');
+  assert.deepEqual(capturedLogs, []);
+});
+
+test('a Telegram 302 is not followed, accepted, or remembered as a completed delivery', async () => {
+  const env = environment();
+  const ticket = fixture();
+  const calls = [];
+  globalThis.fetch = cloudflareTransport(async (url, init) => {
+    calls.push({ url, init });
+    return calls.length === 1
+      ? Response.json({ ok: true }, { status: 302, headers: { Location: 'https://attacker.example/redirected' } })
+      : Response.json({ ok: true, result: { message_id: 2 } });
+  });
+  const redirected = await notify(ticket, { env });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].init.redirect, 'manual');
+  assert.equal(redirected.response.status, 502);
+  assert.deepEqual(redirected.body, { ok: false, error: 'notification_failed' });
+  assert.equal([...env.NOTIFICATION_STATE.records.values()].some(record => record.ttl === 86400), false);
+  assert.deepEqual(capturedLogs, [['telegram_notification_failed', { status: 302, reason: 'other_upstream_error' }]]);
+
+  const retried = await notify(ticket, { env });
+  assert.equal(retried.response.status, 200);
+  assert.equal(calls.length, 2);
+  await notify(ticket, { env });
+  assert.equal(calls.length, 2);
 });
